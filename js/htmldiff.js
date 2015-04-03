@@ -67,7 +67,7 @@
    *    null otherwise
    */
   function is_start_of_atomic_tag(word){
-    var result = /^<(iframe|object|math|svg|script)/.exec(word);
+    var result = /^<(iframe|object|math|svg|script|video)/.exec(word);
     if (result){
       result = result[1];
     }
@@ -107,7 +107,8 @@
    * @return {boolean} True if the token can be wrapped inside a tag, false otherwise.
    */
   function is_wrappable(token){
-    return isnt_tag(token) || is_start_of_atomic_tag(token) || is_void_tag(token);
+    var is_img = /^<img[\s>]/.test(token);
+    return is_img|| isnt_tag(token) || is_start_of_atomic_tag(token) || is_void_tag(token);
   }
 
   /**
@@ -268,10 +269,44 @@
    * @return {string} The identifying key that should be used to match before and after tokens.
    */
   function get_key_for_token(token){
+    // If the token is an image element, grab it's src attribute to include in the key.
+    var img = /^<img.*src=['"]([^"']*)['"].*>$/.exec(token);
+    if (img) {
+      return '<img src="' + img[1] + '">';
+    }
+
+    // If the token is an object element, grab it's data attribute to include in the key.
+    var object = /^<object.*data=['"]([^"']*)['"]/.exec(token);
+    if (object) {
+      return '<object src="' + object[1] + '"></object>';
+    }
+
+    // If it's a video, math or svg element, the entire token should be compared except the
+    // data-uuid.
+    if(/^<(svg|math|video)[\s>]/.test(token)) {
+      var uuid = token.indexOf('data-uuid="');
+      if (uuid !== -1) {
+        var start = token.slice(0, uuid);
+        var end = token.slice(uuid + 44);
+        return start + end;
+      } else {
+        return token;
+      } 
+    }
+
+    // If the token is an iframe element, grab it's src attribute to include in it's key.
+    var iframe = /^<iframe.*src=['"]([^"']*)['"].*>/.exec(token);
+    if (iframe) {
+      return '<iframe src="' + iframe[1] + '"></iframe>';
+    }
+
+    // If token any other element, just grab the tag name.
     var tag_name = /<([^\s>]+)[\s>]/.exec(token);
     if (tag_name){
       return '<' + (tag_name[1].toLowerCase()) + '>';
     }
+
+    // Otherwise, the token is text, collapse the whitespace.
     if (token){
       return token.replace(/(\s+|&nbsp;|&#160;)/g, ' ');
     }
